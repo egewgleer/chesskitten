@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess Kittens — Free Game Analysis</title>
+    <meta name="description"
+        content="Free chess game analysis powered by Stockfish. Paste your PGN or fetch games from Chess.com.">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Chessboard.js CSS (NO integrity hash — was causing SRI failures) -->
+    <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <!-- ====== LANDING / INPUT SCREEN ====== -->
+    <div id="landing-screen" class="screen active">
+        <div class="landing-wrapper">
+            <div class="landing-hero">
+                <div class="logo-large">
+                    <img src="paw.png" alt="Paw Icon" class="logo-icon-img"
+                        style="height: 2.5rem; filter: drop-shadow(0 0 10px var(--accent-glow));">
+                    <h1>Chess <span class="accent">Kittens</span></h1>
+                </div>
+                <p class="tagline">Free game analysis powered by Stockfish</p>
+            </div>
+
+            <div class="landing-card">
+                <div class="tabs">
+                    <button class="tab-btn active" data-target="tab-paste">Paste PGN</button>
+                    <button class="tab-btn" data-target="tab-fetch">Fetch from Website</button>
+                    <button class="tab-btn" data-target="tab-play">Play</button>
+                </div>
+
+                <div class="tab-content active" id="tab-paste">
+                    <textarea id="pgn-input"
+                        placeholder="Paste your PGN here...&#10;&#10;Example:&#10;1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7..."></textarea>
+                    <button id="analyze-pgn-btn" class="btn-primary">
+                        <span>Analyze Game</span>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="m9 18 6-6-6-6" />
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="tab-content" id="tab-fetch">
+                    <div class="fetch-row">
+                        <select id="platform-select"
+                            style="max-width: 120px; background: var(--bg-deep); border: 1px solid var(--border); color: var(--text); border-radius: var(--radius); padding: 8px;">
+                            <option value="chesscom">Chess.com</option>
+                            <option value="lichess">Lichess</option>
+                        </select>
+                        <input type="text" id="username-input" placeholder="Username (e.g. Hikaru)">
+                        <button id="fetch-btn" class="btn-primary">Fetch</button>
+                    </div>
+                    <div id="games-list" class="games-list">
+                        <p class="muted-text">Enter a username to load their recent games.</p>
+                    </div>
+                </div>
+
+                <div class="tab-content" id="tab-play">
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <img src="cheshire.png" alt="Cheshire Bot"
+                            style="height: 100px; filter: drop-shadow(0 0 10px rgba(0,0,0,0.5));">
+                        <h3>Play vs Cheshire</h3>
+                    </div>
+                    <div class="fetch-row"
+                        style="flex-direction: column; align-items: stretch; gap: 4px; padding: 0 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span>Bot ELO:</span>
+                            <span id="bot-elo-display" style="font-weight: bold; color: var(--accent);">1200</span>
+                        </div>
+                        <input type="range" id="bot-elo-slider" min="400" max="3200" step="100" value="1200"
+                            style="width: 100%; margin: 10px 0; accent-color: var(--accent);">
+                    </div>
+
+                    <div class="fetch-row" style="margin-top: 10px; padding: 0 10px;">
+                        <span style="display: flex; align-items: center; padding-right: 10px;">Play as:</span>
+                        <select id="play-color-select"
+                            style="flex: 1; background: var(--bg-deep); border: 1px solid var(--border); color: var(--text); border-radius: var(--radius); padding: 8px;">
+                            <option value="white">White</option>
+                            <option value="black">Black</option>
+                            <option value="random" selected>Random</option>
+                        </select>
+                    </div>
+
+                    <button id="start-play-btn" class="btn-primary" style="margin-top: 15px;">
+                        <span>Start Game</span>
+                        <img src="paw.png" style="width: 16px; height: 16px; margin-left: 6px;" alt="Paw">
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====== PLAY SCREEN ====== -->
+    <div id="play-screen" class="screen">
+        <header>
+            <button id="btn-play-back" class="btn-icon" title="Resign & return">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="m15 18-6-6 6-6" />
+                </svg>
+            </button>
+            <div class="logo-small">
+                <img src="paw.png" alt="Paw Icon" class="logo-icon-sm-img" style="height: 1.2rem;">
+                <span>Chess <span class="accent">Kittens</span></span>
+            </div>
+        </header>
+
+        <main class="analysis-layout" style="justify-content: center;">
+            <!-- CENTER: Board + Controls -->
+            <div class="board-column">
+                <div class="player-bar top-bar">
+                    <span class="player-dot black-dot"></span>
+                    <span id="play-black-name">Cheshire (1200)</span>
+                </div>
+
+                <div class="board-and-eval">
+                    <div class="eval-bar-wrap">
+                        <div class="eval-bar">
+                            <div class="eval-fill" id="play-eval-fill"></div>
+                        </div>
+                        <span class="eval-label" id="play-eval-label">0.0</span>
+                    </div>
+                    <div id="play-board" class="the-board"></div>
+                </div>
+
+                <div class="player-bar bottom-bar">
+                    <span class="player-dot white-dot"></span>
+                    <span id="play-white-name">Anon</span>
+                </div>
+
+                <div class="nav-controls" style="justify-content: center; margin-top: 12px;">
+                    <button id="play-resign-btn" class="btn-icon" title="Resign"
+                        style="padding: 8px 20px; min-width: 110px; font-size: 0.88rem; font-weight: 600; letter-spacing: 0.3px;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2.5">
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                        Resign
+                    </button>
+                </div>
+
+                <div id="play-status-msg"
+                    style="margin-top: 10px; text-align: center; color: var(--accent); font-weight: bold; min-height: 24px;">
+                </div>
+            </div>
+
+            <!-- RIGHT: Move List -->
+            <div class="info-column">
+                <div class="moves-panel">
+                    <div class="moves-header">Live Game</div>
+                    <div class="moves-scroll" id="play-moves-scroll">
+                        <table class="move-table">
+                            <tbody id="play-move-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ====== ANALYSIS SCREEN ====== -->
+    <div id="analysis-screen" class="screen">
+        <header>
+            <button id="btn-back" class="btn-icon" title="Back to Home">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="m15 18-6-6 6-6" />
+                </svg>
+            </button>
+            <div class="logo-small">
+                <img src="paw.png" alt="Paw Icon" class="logo-icon-sm-img" style="height: 1.2rem;">
+                <span>Chess <span class="accent">Kittens</span></span>
+            </div>
+        </header>
+
+        <main class="analysis-layout">
+            <!-- LEFT: Mascot Column -->
+            <div class="mascot-column">
+                <div class="explanation-panel" id="explanation-panel" style="display:none;">
+                    <img src="cheshire.png" alt="Cheshire Mascot" class="reviewer-mascot" id="reviewer-mascot-img">
+                    <div class="reviewer-bubble">
+                        <div style="font-weight: 700; font-size: 0.95rem; margin-bottom: 6px; color: #cc3333;"><img
+                                src="paw.png"
+                                style="width: 16px; height: 16px; vertical-align: text-bottom; margin-right: 4px;">Cheshire's
+                            Review</div>
+                        <div id="explanation-text" style="font-size: 0.88rem; line-height: 1.4;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CENTER: Board + Controls -->
+            <div class="board-column">
+                <div class="player-bar top-bar">
+                    <span class="player-dot black-dot"></span>
+                    <span id="black-name">Black</span>
+                </div>
+
+                <div class="board-and-eval">
+                    <div class="eval-bar-wrap">
+                        <div class="eval-bar">
+                            <div class="eval-fill" id="eval-fill"></div>
+                        </div>
+                        <span class="eval-label" id="eval-label">0.0</span>
+                    </div>
+                    <div id="board" class="the-board"></div>
+                </div>
+
+                <div class="player-bar bottom-bar">
+                    <span class="player-dot white-dot"></span>
+                    <span id="white-name">White</span>
+                </div>
+
+                <div class="nav-controls">
+                    <button class="btn-icon" id="btn-start" title="Go to start">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M6 6h2v12H6zm3.5 6 8.5 6V6z" />
+                        </svg>
+                    </button>
+                    <button class="btn-icon" id="btn-prev" title="Previous move">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+                        </svg>
+                    </button>
+                    <button class="btn-icon" id="btn-next" title="Next move">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+                        </svg>
+                    </button>
+                    <button class="btn-icon" id="btn-end" title="Go to end">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M16 18h2V6h-2zM4 18l8.5-6L4 6z" />
+                        </svg>
+                    </button>
+                    <button class="btn-icon" id="btn-flip" title="Flip board">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- RIGHT: Engine + Move List -->
+            <div class="info-column">
+                <!-- Analyze Game Button (shown after play mode) -->
+                <button id="btn-run-analysis" class="btn-primary" style="display: none; gap: 10px;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8" />
+                        <path d="m21 21-4.35-4.35" />
+                        <path d="M11 8v6M8 11h6" />
+                    </svg>
+                    Analyze Game
+                </button>
+
+                <!-- Analysis Progress Bar -->
+                <div class="analysis-progress" id="analysis-progress" style="display:none;">
+                    <span class="analysis-progress-text" id="analysis-progress-text">Analyzing...</span>
+                    <div class="analysis-progress-track">
+                        <div class="analysis-progress-fill" id="analysis-progress-fill"></div>
+                    </div>
+                </div>
+
+                <div class="engine-panel">
+                    <div class="engine-header">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span class="engine-title">⚙ Engine</span>
+                            <select id="engine-depth-select" class="engine-depth-select">
+                                <option value="10">Fast (Depth 10)</option>
+                                <option value="14" selected>Standard (Depth 14)</option>
+                                <option value="18">Deep (Depth 18)</option>
+                            </select>
+                        </div>
+                        <div class="engine-spinner" id="engine-spinner"></div>
+                    </div>
+                    <div class="engine-stats">
+                        <div class="stat">
+                            <span class="stat-label">Evaluation</span>
+                            <span class="stat-value" id="engine-eval">0.0</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-label">Best Move</span>
+                            <span class="stat-value highlight" id="engine-best">—</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-label">Depth</span>
+                            <span class="stat-value" id="engine-depth">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Game Summary Panel (shown after analysis) -->
+                <div class="summary-panel" id="summary-panel" style="display:none;">
+                    <div class="summary-header">
+                        Game Summary
+                        <div id="summary-opening-name"
+                            style="font-size: 0.75em; color: var(--accent-secondary); margin-top: 4px; font-weight: normal; text-transform: none;">
+                        </div>
+                    </div>
+                    <div class="summary-accuracy">
+                        <div class="accuracy-col">
+                            <span class="accuracy-label" id="summary-white-name">White</span>
+                            <span class="accuracy-score" id="summary-white-acc">—</span>
+                        </div>
+                        <div class="accuracy-divider">Accuracy</div>
+                        <div class="accuracy-col">
+                            <span class="accuracy-label" id="summary-black-name">Black</span>
+                            <span class="accuracy-score" id="summary-black-acc">—</span>
+                        </div>
+                    </div>
+                    <div class="summary-rows" id="summary-rows"></div>
+                </div>
+
+                <div class="moves-panel">
+                    <div class="moves-header">Moves</div>
+                    <div class="moves-scroll" id="moves-scroll">
+                        <table class="move-table">
+                            <tbody id="move-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Libraries -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+
+    <!-- App -->
+    <script src="js/engine.js"></script>
+    <script src="js/chesslogic.js"></script>
+    <script src="js/review.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/play.js"></script>
+
+</body>
+
+</html>
